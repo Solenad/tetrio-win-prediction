@@ -154,8 +154,7 @@ for col in num_cols:
 # Data Preprocessing: Remove inconsistent games
 # Drop games where 'won', 'rating', 'glicko', or 'glicko_rd' are not consistent within a game.
 if {"game_id", "won", "rating", "glicko", "glicko_rd"}.issubset(df.columns):
-    gchecks = df.groupby("game_id")[
-        ["won", "rating", "glicko", "glicko_rd"]].nunique()
+    gchecks = df.groupby("game_id")[["won", "rating", "glicko", "glicko_rd"]].nunique()
     inconsistent_games = gchecks[(gchecks > 1).any(axis=1)].index.tolist()
     print(f"Inconsistent games found: {len(inconsistent_games)}")
     df = df[~df["game_id"].isin(inconsistent_games)]
@@ -194,18 +193,14 @@ agg_dict = {
 
 game_level = df.groupby("game_id").agg(agg_dict)
 
-game_level.columns = ["_".join([c for c in col if c])
-                      for col in game_level.columns]
+game_level.columns = ["_".join([c for c in col if c]) for col in game_level.columns]
 game_level = game_level.reset_index()
 
 game_level["duration_sec"] = game_level["subframe_max"] / 600
 game_level["pps"] = game_level["subframe_count"] / game_level["duration_sec"]
-game_level["attack_per_piece"] = game_level["attack_sum"] / \
-    game_level["subframe_count"]
-game_level["attack_per_sec"] = game_level["attack_sum"] / \
-    game_level["duration_sec"]
-game_level["tspin_rate"] = game_level["t_spin_<lambda>"] / \
-    game_level["subframe_count"]
+game_level["attack_per_piece"] = game_level["attack_sum"] / game_level["subframe_count"]
+game_level["attack_per_sec"] = game_level["attack_sum"] / game_level["duration_sec"]
+game_level["tspin_rate"] = game_level["t_spin_<lambda>"] / game_level["subframe_count"]
 
 game_level.head()
 print("Num rows in game_level:", len(game_level))
@@ -213,5 +208,5 @@ print("Num rows in game_level:", len(game_level))
 
 # %%
 # Export
-game_level.to_csv("./data/game_level.csv", index=False)
+game_level.to_csv("./data/data_processed.csv", index=False)
 # %%
