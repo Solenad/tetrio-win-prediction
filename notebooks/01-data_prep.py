@@ -151,7 +151,7 @@ print("Num placement rows:", len(df))
 print("Num unique game_id:", df["game_id"].nunique())
 print("game_id dtype:", df["game_id"].dtype)
 
-# Aggregation
+# %% Aggregation
 # groupby game_id
 agg_dict = {
     "subframe": ["max", "count"],
