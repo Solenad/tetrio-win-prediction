@@ -15,39 +15,37 @@
 
 # %%
 # Initialization
+
+from scipy.stats import loguniform
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+from dotenv import load_dotenv
+import comet_ml.integration.sklearn
+import comet_ml
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import os
-import comet_ml
-import comet_ml.integration.sklearn
-from dotenv import load_dotenv
-from sklearn.metrics import accuracy_score
-from sklearn.linear_model import SGDClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from src.logreg import fit_minibatch_sgd
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import loguniform
-from src.logreg import MinibatchSGDWrapper
 import sys
+import os
+
+project_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+from src.logreg import MinibatchSGDWrapper
 
 load_dotenv()
 
 api_key = os.getenv("COMET_API_KEY")
-print(api_key)
 comet_ml.login(api_key=api_key)
 exp = comet_ml.start(project_name="logreg-hyperparam-tuning")
 exp.set_name("LogReg Hyperparam Tuning")
 exp.add_tag("logreg")
 
-
-sys.path.append("./src")
-
-df = pd.read_csv("./data/data_processed.csv")
+df = pd.read_csv("../data/data_processed.csv")
 
 df.info()
 df.head()
@@ -58,61 +56,18 @@ X = df.drop(columns=["won"])  # Features
 y = df["won"]  # Target variable
 
 # %%
-# Split data into training, validation, and test
-# 0.1765 ≈ 0.15 / 0.85 to get 15% of original data for validation
-X_temp, X_test, y_temp, y_test = train_test_split(
+# Split data into training and validation
+# 85% / 15% split
+# RandomizedSearchCV will automatically do a 15% split for validation
+X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.15, stratify=y, random_state=42
-)
-X_train, X_val, y_train, y_val = train_test_split(
-    X_temp, y_temp, test_size=0.1765, stratify=y_temp, random_state=42
 )
 
 # Check sizes of splits
 print(f"Training data: {X_train.shape}")
 print(f"Training labels: {y_train.shape}")
-print(f"Validation data: {X_val.shape}")
-print(f"Validation labels: {y_val.shape}")
 print(f"Testing data: {X_test.shape}")
 print(f"Testing labels: {y_test.shape}")
-
-# %%
-# Logistic Regression
-# Instantiate SDGClassifier and fit model
-epochs = 200
-batch_size = 32
-random_state = 1
-logreg_model = SGDClassifier(
-    loss="log_loss",
-    eta0=0.001,
-    max_iter=epochs,
-    learning_rate="constant",
-    random_state=random_state,
-    verbose=0,
-)
-# logreg_model = fit_minibatch_sgd(
-#     logreg_model,
-#     X_train,
-#     y_train,
-#     epochs=epochs,
-#     batch_size=batch_size,
-#     random_state=1,
-# )
-#
-# # %%
-# # Test model on training set
-# y_pred_train = logreg_model.predict(X_train)
-# train_accuracy = accuracy_score(y_train, y_pred_train)
-# print(f"Training Accuracy: {train_accuracy:.4f}")
-# print("\nClassification Report (Train Set):\n")
-# print(classification_report(y_train, y_pred_train))
-#
-# # %%
-# # Test model on validation set
-# y_pred_val = logreg_model.predict(X_val)
-# val_accuracy = accuracy_score(y_val, y_pred_val)
-# print(f"Validation Accuracy: {val_accuracy:.4f}")
-# print("\nClassification Report (Validation Set):\n")
-# print(classification_report(y_val, y_pred_val))
 
 # %%
 # Perform hyperparameter tuning
@@ -122,9 +77,8 @@ pipeline = Pipeline([("scaler", StandardScaler()), ("logreg", MinibatchSGDWrappe
 # Define hyperparameter ranges
 param_dist = {
     "logreg__eta0": loguniform(1e-4, 1e-1),
-    "logreg__batch_size": [16, 32, 64, 128],
-    "logreg__epochs": np.arange(100, 301),
-    "logreg__random_state": [1, 42],
+    "logreg__batch_size": [32, 64, 128],
+    "logreg__epochs": np.arange(20, 100),
 }
 
 # RandomizedSearchCV is more robust than manual iterations as the former runs jobs in parallel
@@ -143,14 +97,97 @@ random_search = RandomizedSearchCV(
 # Tune hyperparameter via random_search
 random_search.fit(X_train, y_train)
 
-# Log results to comet_ml
-comet_ml.integration.sklearn.log_search(exp, random_search)
-
 # %%
 # Log best model
 best_model = random_search.best_estimator_
+
 print(f"Best Params: {random_search.best_params_}")
 print(f"Best CV Accuracy: {random_search.best_score_:.4f}")
+
+
+# %%
+# Load results into a df
+results_df = pd.DataFrame(random_search.cv_results_)
+results_df["param_logreg__eta0"] = pd.to_numeric(results_df["param_logreg__eta0"])
+results_df["param_logreg__epochs"] = pd.to_numeric(results_df["param_logreg__epochs"])
+results_df["param_logreg__batch_size"] = pd.to_numeric(
+    results_df["param_logreg__batch_size"]
+)
+
+# %%
+# Impact of adjusting the learning rate on accruacy
+plt.figure(figsize=(8, 6))
+sns.scatterplot(
+    data=results_df,
+    x="param_logreg__eta0",
+    y="mean_test_score",
+    hue="param_logreg__batch_size",
+    palette="viridis",
+    size=200,
+    legend=False,
+)
+sns.regplot(
+    data=results_df,
+    x="param_logreg__eta0",
+    y="mean_test_score",
+    scatter=False,
+    order=1,  # Uses polynomial regression instead of LOWESS
+    color="red",
+    line_kws={"linestyle": "--", "linewidth": 2},
+)
+
+plt.xscale("log")
+plt.title("Impact of Learning Rate on Accuracy")
+plt.xlabel("Initial Learning Rate (eta0)")
+plt.ylabel("Mean Test Accuracy")
+plt.grid(True, linestyle="--", alpha=0.6)
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# Impact of epochs on accuracy
+plt.figure(figsize=(8, 6))
+
+sns.lineplot(
+    data=results_df,
+    x="param_logreg__epochs",
+    y="mean_test_score",
+    marker="o",
+    color="forestgreen",
+    errorbar=None,
+)
+
+plt.title("Impact of Epochs on Accuracy")
+plt.xlabel("Number of Epochs")
+plt.ylabel("Mean Test Accuracy")
+plt.grid(True, linestyle="--", alpha=0.6)
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# Impact of batch size on accuracy
+plt.figure(figsize=(8, 6))
+
+sns.lineplot(
+    data=results_df,
+    x="param_logreg__batch_size",
+    y="mean_test_score",
+    marker="o",
+    color="royalblue",
+    errorbar="sd",  # Shows the standard deviation as a shaded band
+)
+
+# Forces the x-axis to only show your exact batch sizes
+plt.xticks([32, 64, 128])
+plt.title("Impact of Batch Size on Accuracy")
+plt.xlabel("Batch Size")
+plt.ylabel("Mean Test Accuracy")
+plt.grid(True, linestyle="--", alpha=0.6)
+
+plt.tight_layout()
+plt.show()
 
 # %%
 # Test best model on test data
@@ -168,24 +205,6 @@ sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
 plt.title("Confusion Matrix (Test Data)")
 plt.xlabel("Predicted")
 plt.ylabel("True")
-plt.show()
-
-# %%
-# Cross-validation
-# Evaluate the model using 10-fold cross-validation
-# 10-fold was used as a common default, 5-fold may cause higher variance
-cv_scores = cross_val_score(best_model, X, y, cv=10, scoring="accuracy")
-
-print(f"Cross-Validation Scores: {cv_scores}")
-print(f"Mean Cross-Validation Accuracy: {np.mean(cv_scores):.4f}")
-
-# %%
-# Cross-validation visualization
-plt.plot(range(1, len(cv_scores) + 1), cv_scores, marker="o")
-plt.title("Cross-Validation Accuracy per Fold")
-plt.xlabel("Fold")
-plt.ylabel("Accuracy")
-plt.grid(True)
 plt.show()
 
 # %%
