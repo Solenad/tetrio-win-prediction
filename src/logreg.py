@@ -1,8 +1,9 @@
 import numpy as np
 import comet_ml
+import matplotlib.pyplot as plt
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import log_loss, accuracy_score
+from sklearn.metrics import log_loss
 
 
 def fit_minibatch_sgd(model, X_train, y_train, epochs, batch_size, random_state):
@@ -11,7 +12,8 @@ def fit_minibatch_sgd(model, X_train, y_train, epochs, batch_size, random_state)
     rng = np.random.default_rng(random_state)
     exp = comet_ml.get_global_experiment()
 
-    global_step = 0  # To track total batches processed
+    loss_history = []
+    global_step = 0
 
     for epoch in range(epochs):
         indices = rng.permutation(n_samples)
@@ -21,24 +23,21 @@ def fit_minibatch_sgd(model, X_train, y_train, epochs, batch_size, random_state)
             batch_idx = indices[start:end]
             X_batch, y_batch = X_train[batch_idx], y_train[batch_idx]
 
-            # 1. Update the model
             if epoch == 0 and start == 0:
                 model.partial_fit(X_batch, y_batch, classes=classes)
             else:
                 model.partial_fit(X_batch, y_batch)
 
-            # 2. Calculate and log batch loss
-            if exp and global_step % 1000 == 0:
-                # Get probabilities for the current batch to calculate loss
-                y_proba_batch = model.predict_proba(X_batch)
-                # We use 'labels=classes' because a small batch might not have all classes
-                batch_loss = log_loss(y_batch, y_proba_batch, labels=classes)
-
-                exp.log_metric("batch_loss", batch_loss, step=global_step)
-
             global_step += 1
 
-    return model
+        current_proba = model.predict_proba(X_train)
+        epoch_loss = log_loss(y_train, current_proba, labels=classes)
+        loss_history.append(epoch_loss)
+
+        if exp:
+            exp.log_metric("epoch_loss", epoch_loss, step=epoch)
+
+    return model, loss_history  # <--- NEW: Return the history
 
 
 class MinibatchSGDWrapper(BaseEstimator, ClassifierMixin):
@@ -48,6 +47,7 @@ class MinibatchSGDWrapper(BaseEstimator, ClassifierMixin):
         self.batch_size = batch_size
         self.random_state = random_state
         self.model = None
+        self.loss_history_ = []
 
     def fit(self, X, y):
         X = np.asarray(X)
@@ -60,7 +60,7 @@ class MinibatchSGDWrapper(BaseEstimator, ClassifierMixin):
             random_state=self.random_state,
         )
 
-        self.model = fit_minibatch_sgd(
+        self.model, self.loss_history_ = fit_minibatch_sgd(  # <--- NEW
             self.model,
             X,
             y,
@@ -72,7 +72,6 @@ class MinibatchSGDWrapper(BaseEstimator, ClassifierMixin):
         self.coef_ = self.model.coef_
         return self
 
-    # Ensure predict/predict_proba also handle potential DataFrame inputs
     def predict(self, X):
         return self.model.predict(np.asarray(X))
 
