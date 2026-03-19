@@ -35,8 +35,8 @@ import os
 project_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
 if project_root not in sys.path:
     sys.path.append(project_root)
-from src.logreg import MinibatchSGDWrapper
 
+from src.logreg import MinibatchSGDWrapper
 load_dotenv()
 
 api_key = os.getenv("COMET_API_KEY")
@@ -70,6 +70,36 @@ print(f"Testing data: {X_test.shape}")
 print(f"Testing labels: {y_test.shape}")
 
 # %%
+# Run pilot model to test optimal epochs
+pilot_model = MinibatchSGDWrapper(eta0=0.001, epochs=150, batch_size=64)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+
+# Run the training
+print("Training pilot model...")
+pilot_model.fit(X_train_scaled, y_train)
+print("Done!")
+
+# %%
+# Check learning curve
+plt.figure(figsize=(10, 6))
+plt.plot(
+    range(1, len(pilot_model.loss_history_) + 1),
+    pilot_model.loss_history_,
+    color="firebrick",
+    linewidth=2,
+)
+
+plt.title("Learning Curve: Loss vs. Epochs", fontsize=14)
+plt.xlabel("Epochs", fontsize=12)
+plt.ylabel("Log Loss (Training)", fontsize=12)
+plt.grid(True, linestyle="--", alpha=0.7)
+plt.show()
+
+print(f"Final Loss at Epoch 300: {pilot_model.loss_history_[-1]:.4f}")
+print(f"Loss at Epoch 130: {pilot_model.loss_history_[129]:.4f}")
+
+# %%
 # Perform hyperparameter tuning
 # Instantiate pipeline with SGDWrapper
 pipeline = Pipeline([("scaler", StandardScaler()), ("logreg", MinibatchSGDWrapper())])
@@ -77,15 +107,17 @@ pipeline = Pipeline([("scaler", StandardScaler()), ("logreg", MinibatchSGDWrappe
 # Define hyperparameter ranges
 param_dist = {
     "logreg__eta0": loguniform(1e-4, 1e-1),
+    # 
     "logreg__batch_size": [32, 64, 128],
-    "logreg__epochs": np.arange(20, 100),
+    # Set best epochs
+    "logreg__epochs": [50],
 }
 
 # RandomizedSearchCV is more robust than manual iterations as the former runs jobs in parallel
 random_search = RandomizedSearchCV(
     pipeline,
     param_distributions=param_dist,
-    n_iter=20,
+    n_iter=50,
     cv=5,
     scoring="accuracy",
     n_jobs=-1,
@@ -139,27 +171,6 @@ sns.regplot(
 plt.xscale("log")
 plt.title("Impact of Learning Rate on Accuracy")
 plt.xlabel("Initial Learning Rate (eta0)")
-plt.ylabel("Mean Test Accuracy")
-plt.grid(True, linestyle="--", alpha=0.6)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# Impact of epochs on accuracy
-plt.figure(figsize=(8, 6))
-
-sns.lineplot(
-    data=results_df,
-    x="param_logreg__epochs",
-    y="mean_test_score",
-    marker="o",
-    color="forestgreen",
-    errorbar=None,
-)
-
-plt.title("Impact of Epochs on Accuracy")
-plt.xlabel("Number of Epochs")
 plt.ylabel("Mean Test Accuracy")
 plt.grid(True, linestyle="--", alpha=0.6)
 
