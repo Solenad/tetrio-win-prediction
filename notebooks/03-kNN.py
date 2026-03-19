@@ -94,17 +94,17 @@ plt.grid(True)
 plt.show()
 
 # %%
-# Best k Selection
+# Best k selection
 best_k = k_values[np.argmax(cross_val_scores)]
 print(f"Best k: {
       best_k} with Cross-Validation Accuracy: {max(cross_val_scores):.2f}")
 
 # %%
-# Retraining Model with Best k
+# Model retraining using best k
 final_model = KNeighborsClassifier(n_neighbors=best_k)
 final_model.fit(X_train, y_train)
 
-# Final Model Evaluation
+# Final model evaluation
 final_y_pred = final_model.predict(X_test)
 final_accuracy = accuracy_score(y_test, final_y_pred)
 
@@ -112,7 +112,7 @@ print(f"Final Model Accuracy (k={best_k}): {final_accuracy:.2f}")
 print("\nFinal Classification Report:\n")
 print(classification_report(y_test, final_y_pred))
 
-# Confusion Matrix for Final Model
+# Confusion matrix for final model
 final_conf_matrix = confusion_matrix(y_test, final_y_pred)
 sns.heatmap(final_conf_matrix, annot=True, cmap="Blues", fmt="d")
 plt.title(f"Confusion Matrix (k={best_k})")
