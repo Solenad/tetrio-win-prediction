@@ -81,7 +81,7 @@ cross_val_scores = []
 
 for k in k_values:
     knn = KNeighborsClassifier(n_neighbors=k)
-    scores = cross_val_score(knn, X, y, cv=10, scoring="accuracy")
+    scores = cross_val_score(knn, X_train, y, cv=10, scoring="accuracy")
     cross_val_scores.append(scores.mean())
 
 # %%

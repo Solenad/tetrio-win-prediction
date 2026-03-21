@@ -1,4 +1,4 @@
-# stintsy-mco
+# tetrio-win-prediction
 - **Task:** Predict whether a player wins a replay (`won`) using gameplay statistics and player rating indicators.  
 - **Dataset:** Tetr.io Top Players Replays  
 - **Source:** https://www.kaggle.com/datasets/n3koasakura/tetr-io-top-players-replays
