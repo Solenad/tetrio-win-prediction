@@ -168,7 +168,14 @@ of epochs determined will be 50.
 
 ## Hyperparameter Tuning
 
-After determining the ideal epoch (50), it will then be set as a fixed hyperparameter for the hyperparameter tuning phase. This avoids overfitting and applies the least validation loss. First, instantiate a `Pipeline()` object that consists of standardization, followed by the model. Then, set the parameter ranges, where `logreg_batch_size` is randomly selected from the ranges of 32, 64, and 128, and then the learning rate (`logreg_eta0`) from 0.0001 to 0.1. The selected iterations will also be 50, allowing for a broad range of possible combinations.
+After determining the ideal epoch (50), it will then be set as a fixed
+hyperparameter for the hyperparameter tuning phase. This avoids overfitting
+and applies the least validation loss. First, instantiate a `Pipeline()` object
+that consists of standardization, followed by the model. Then, set the
+parameter ranges, where `logreg_batch_size` is randomly selected from the
+ranges of 32, 64, and 128, and then the learning rate (`logreg_eta0`) from
+0.0001 to 0.1. The selected iterations will also be 50, allowing for a broad
+range of possible combinations.
 
 ```python
 # Perform hyperparameter tuning
@@ -423,7 +430,7 @@ contributes to winning in a Tetrio match:
   `combo_max` is a negative contributor. Decisions such as going for a quad
   (4-wide clear) or t-spin triple at crucial moments are riskier moves that
   can leave a player vulnerable to counter-spikes (massive `incoming_garbage`).
-- `tspin_rate` & `btb_mean`: High attack moves such as t-spins and back-to-back
+- `tspin_rate` & `btb_mean`: High attack moves, such as t-spins and back-to-back
   moves turn out to be negative contributors. This does not mean that such moves
-  are considered negative, but rather **prioritizing flashy setups can be very risky
+  are considered negative, but rather that **prioritizing flashy setups can be very risky
   for a player**. It may remove their defensive timing and leave them open to `incoming_garbage`.
